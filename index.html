@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TC Bloc Analysis Tool</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#020a10;color:#eaf3f8;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}.card,.dash{width:min(980px,100%);border:1px solid #173247;border-radius:28px;background:linear-gradient(145deg,#061721,#031018);box-shadow:0 25px 70px #0008;padding:38px}
+#login{width:min(650px,100%)}h1{font-size:45px;line-height:1.08;letter-spacing:4px;text-align:center;margin:10px 0 26px}
+.badge{width:max-content;margin:0 auto 55px;padding:13px 23px;border:1px solid #0c6aa1;border-radius:28px;color:#59baff;letter-spacing:2px;font-weight:800;background:#061c2a}
+label{display:block;color:#bac7cf;font-weight:800;letter-spacing:1px;margin:0 0 9px;font-size:14px}input,select{width:100%;background:#06111a;border:2px solid #183243;color:#eef7fb;border-radius:14px;padding:17px;font-size:17px;outline:none;margin-bottom:22px}input:focus,select:focus{border-color:#1598e8}
+button{width:100%;border:0;border-radius:14px;padding:18px;background:#1598e8;color:white;font-size:18px;font-weight:800;cursor:pointer}.error{margin-top:20px;padding:14px;border:1px solid #5b2733;border-radius:13px;background:#1a0d13;color:#ff9eab;display:none}.muted,.note{color:#71828d}.muted{text-align:center;margin-top:34px}
+#dashboard{display:none}.top{display:flex;justify-content:space-between;gap:15px;align-items:center;flex-wrap:wrap}.top h2{margin:0;font-size:28px}.logout{width:auto;padding:10px 17px;font-size:14px}
+.panel{background:#071721;border:1px solid #173247;border-radius:18px;padding:19px;margin-top:17px}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row select{margin:0;flex:1;min-width:200px}.status{color:#72d39b}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin:18px 0}.stat{background:#081c27;border:1px solid #17374a;border-radius:16px;padding:17px}.stat small{color:#7f96a2}.stat strong{display:block;font-size:28px;margin-top:6px}
+.ticks{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:13px}.tick{padding:11px;border-radius:10px;background:#0a202c;text-align:center}.digit{font-size:21px;font-weight:800}
+.bar{height:10px;background:#102633;border-radius:10px;overflow:hidden;flex:1}.bar>i{display:block;height:100%;background:#1598e8}
+@media(max-width:700px){.card,.dash{padding:28px 20px}h1{font-size:35px}.badge{margin-bottom:40px}.grid{grid-template-columns:repeat(2,1fr)}.ticks{grid-template-columns:repeat(4,1fr)}}
+</style></head><body><div class="wrap">
+<section id="login" class="card"><h1>TC BLOC<br>ANALYSIS TOOL</h1><div class="badge">PROFESSIONAL DIGIT ANALYSIS</div>
+<form id="loginForm"><label>EMAIL ADDRESS</label><input id="email" type="email" autocomplete="username" placeholder="Enter email address" required>
+<label>PASSWORD</label><input id="password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+<button>Login to Dashboard</button><div id="error" class="error"></div></form><div class="muted">Secure account authentication · Live Deriv market data</div></section>
+
+<section id="dashboard"><div class="dash"><div class="top"><div><h2>TC Bloc Analysis Tool</h2><div class="note">Live digit-frequency dashboard</div></div><button class="logout" id="logout">Log out</button></div>
+<div class="panel"><div class="row"><select id="symbol"><option value="1HZ100V">Volatility 100 (1s)</option><option value="1HZ75V">Volatility 75 (1s)</option><option value="1HZ50V">Volatility 50 (1s)</option><option value="R_100">Volatility 100</option><option value="R_75">Volatility 75</option></select><div id="status" class="status">Connecting…</div></div></div>
+<div class="grid"><div class="stat"><small>Current quote</small><strong id="quote">—</strong></div><div class="stat"><small>Last digit</small><strong id="last">—</strong></div><div class="stat"><small>Total ticks</small><strong id="total">0</strong></div><div class="stat"><small>Dominant digit</small><strong id="dominant">—</strong></div></div>
+<div class="panel"><h3>Digit frequency (last 100 ticks)</h3><div id="freq"></div></div><div class="panel"><h3>Recent ticks</h3><div id="ticks" class="ticks"></div></div>
+<div class="panel"><div class="note">Frequency is descriptive market data, not a guarantee of future outcomes. This dashboard does not place trades.</div></div></div></section>
+</div>
+<script>
+const $=x=>document.getElementById(x);let ws=null,ticks=[],total=0;
+async function session(){try{let r=await fetch('/api/session',{cache:'no-store'}),d=await r.json();d.authenticated?dashboard():login()}catch{login()}}
+function login(){$('login').style.display='block';$('dashboard').style.display='none'}function dashboard(){$('login').style.display='none';$('dashboard').style.display='block';feed()}
+$('loginForm').onsubmit=async e=>{e.preventDefault();$('error').style.display='none';try{let r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value})}),d=await r.json();if(!r.ok)throw Error(d.error||'Login failed');dashboard()}catch(x){$('error').textContent=x.message;$('error').style.display='block'}}
+$('logout').onclick=async()=>{await fetch('/api/logout');if(ws)ws.close();login()};
+function feed(){if(ws)ws.close();$('status').textContent='Connecting…';ws=new WebSocket('wss://api.derivws.com/trading/v1/options/ws/public');ws.onopen=()=>{$('status').textContent='Live';sub()};ws.onmessage=e=>{let m=JSON.parse(e.data);if(m.tick){let q=Number(m.tick.quote),d=Number(String(q).replace('.','').slice(-1));ticks.unshift({q,d});ticks=ticks.slice(0,100);total++;render()}};ws.onerror=()=>$('status').textContent='Connection error';ws.onclose=()=>$('status').textContent='Disconnected'}
+function sub(){ws.send(JSON.stringify({ticks:$('symbol').value}))}$('symbol').onchange=sub;
+function render(){if(!ticks.length)return;$('quote').textContent=ticks[0].q;$('last').textContent=ticks[0].d;$('total').textContent=total;let c=Array(10).fill(0);ticks.forEach(x=>c[x.d]++);let max=Math.max(...c);$('dominant').textContent=c.indexOf(max);$('freq').innerHTML=c.map((n,i)=>`<div style="display:flex;align-items:center;gap:10px;margin:8px 0"><b style="width:20px">${i}</b><div class="bar"><i style="width:${Math.round(n/ticks.length*100)}%"></i></div><span>${n}</span></div>`).join('');$('ticks').innerHTML=ticks.slice(0,12).map(x=>`<div class="tick"><div class="digit">${x.d}</div><div class="note">${x.q}</div></div>`).join('')}
+session();
+</script></body></html>
